@@ -7,7 +7,7 @@ import CheckoutModal from '@/components/CheckoutModal'
 import WebsiteReviews from '@/components/WebsiteReviews'
 import Footer from '@/components/Footer'
 import Link from 'next/link'
-import { ShoppingBag, Search, User, CheckCircle, Clock, X } from 'lucide-react'
+import { ShoppingBag, Search, CheckCircle, Clock, X, Lock, Mail, User as UserIcon } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import StoreClosedBanner from '@/components/StoreClosedBanner'
 
@@ -23,17 +23,21 @@ export default function Home() {
   const [orderSuccess, setOrderSuccess] = useState(null)
   const [isStoreClosed, setIsStoreClosed] = useState(false)
 
-  // Auth Modal States
+  // 🔐 Auth Modal States
   const [showAuthModal, setShowAuthModal] = useState(false)
+  const [authTab, setAuthTab] = useState('login') // 'login' or 'register'
+  const [userName, setUserName] = useState('')
   const [userEmail, setUserEmail] = useState('')
   const [userPassword, setUserPassword] = useState('')
+  const [authError, setAuthError] = useState('')
+  const [authMsg, setAuthMsg] = useState('')
+  const [authLoading, setAuthLoading] = useState(false)
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) setUser(user)
     })
     
-    // Auth Listener for login state change
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null)
     })
@@ -45,7 +49,6 @@ export default function Home() {
       }
     })
 
-    // Store Timing Check (09:30 AM to 09:30 PM)
     checkStoreTiming()
 
     return () => subscription.unsubscribe()
@@ -93,41 +96,66 @@ export default function Home() {
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.qty, 0)
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0)
 
-  // 🔐 Email Authentication Handler
-  const handleEmailAuth = async (e) => {
+  // 🔑 LOGIN HANDLER
+  const handleLogin = async (e) => {
     e.preventDefault()
-    if (!userEmail || !userPassword) return
+    setAuthError('')
+    setAuthMsg('')
+    setAuthLoading(true)
 
-    // Login Attempt
     const { data, error } = await supabase.auth.signInWithPassword({
       email: userEmail,
       password: userPassword,
     })
 
+    setAuthLoading(false)
+
     if (error) {
-      // Auto Sign-Up if account doesn't exist
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: userEmail,
-        password: userPassword,
-      })
-
-      if (signUpError) {
-        alert('❌ Auth Error: ' + signUpError.message)
-        return
-      }
-      alert('🎉 Account Created & Logged In!')
-      setUser(signUpData.user)
+      setAuthError(error.message)
     } else {
-      alert('✅ Login Successful!')
       setUser(data.user)
+      setShowAuthModal(false)
+      setUserEmail('')
+      setUserPassword('')
     }
+  }
 
-    setShowAuthModal(false)
+  // 📝 REGISTER HANDLER WITH DISPLAY NAME
+  const handleRegister = async (e) => {
+    e.preventDefault()
+    setAuthError('')
+    setAuthMsg('')
+    setAuthLoading(true)
+
+    const { data, error } = await supabase.auth.signUp({
+      email: userEmail,
+      password: userPassword,
+      options: {
+        data: {
+          display_name: userName,
+        },
+      },
+    })
+
+    setAuthLoading(false)
+
+    if (error) {
+      setAuthError(error.message)
+    } else {
+      setAuthMsg('🎉 Account Created Successfully!')
+      setUser(data.user)
+      setTimeout(() => {
+        setShowAuthModal(false)
+        setUserName('')
+        setUserEmail('')
+        setUserPassword('')
+        setAuthMsg('')
+      }, 1500)
+    }
   }
 
   const handleConfirmOrder = async (orderDetails) => {
     if (isStoreClosed) {
-      alert('⚠️ Kitchen abhi closed hai. Orders subah 09:30 AM se shuru honge.')
       return
     }
 
@@ -166,22 +194,21 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col justify-between relative">
       
-      {/* Upper Main Body Container */}
       <div className="flex-1 pb-16">
-        {/* 📢 Store Closed Auto Banner */}
         <StoreClosedBanner />
 
-        {/* 🧭 Navbar with Auth Click Hook */}
-        <Navbar user={user} onOpenAuth={() => setShowAuthModal(true)} />
+        <Navbar user={user} onOpenAuth={() => {
+          setAuthError('')
+          setAuthMsg('')
+          setShowAuthModal(true)
+        }} />
 
         <main className="max-w-5xl mx-auto px-4 mt-6">
-          {/* Banner */}
           <div className="bg-gradient-to-r from-red-500 to-rose-400 text-white p-5 rounded-2xl mb-6 shadow-md">
             <h2 className="text-xl font-bold mb-1">Garma-Garam Fast Food 🚀</h2>
             <p className="text-xs opacity-90">Under 30 minutes superfast local delivery!</p>
           </div>
 
-          {/* Search & Categories */}
           <div className="space-y-3 mb-6">
             <div className="relative">
               <Search className="absolute left-3.5 top-3 text-gray-400" size={16} />
@@ -209,13 +236,11 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Menu Cards Grid */}
           <h3 className="text-base font-bold mb-3 border-l-4 border-red-500 pl-2 text-gray-900">
             Special Menu
           </h3>
 
           {filteredMenu.length === 0 ? (
-            /* 🔍 Empty State UI */
             <div className="bg-white p-8 rounded-2xl border text-center my-4 space-y-2 shadow-sm">
               <div className="text-3xl">🔍</div>
               <h4 className="font-bold text-sm text-gray-800">
@@ -248,14 +273,12 @@ export default function Home() {
             </div>
           )}
 
-          {/* 🌟 Genuine Customer Reviews Section */}
           <div className="mt-10">
             <WebsiteReviews />
           </div>
         </main>
       </div>
 
-      {/* Cart Bottom Bar */}
       {cart.length > 0 && (
         <div className="fixed bottom-0 inset-x-0 bg-white border-t p-4 z-30 shadow-2xl">
           <div className="max-w-5xl mx-auto flex justify-between items-center">
@@ -277,10 +300,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* 🦶 Footer Component */}
       <Footer />
 
-      {/* Checkout Modal */}
       <CheckoutModal
         isOpen={showCheckout}
         onClose={() => setShowCheckout(false)}
@@ -288,60 +309,168 @@ export default function Home() {
         onConfirmOrder={handleConfirmOrder}
       />
 
-      {/* 🔐 Email Login & Register Modal Popup */}
+      {/* 🔐 AUTH MODAL (SEPARATE LOGIN & REGISTER TABS + NO BROWSER ALERT) */}
       {showAuthModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full relative shadow-2xl space-y-4 border border-gray-100">
             
             <button 
               onClick={() => setShowAuthModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 font-bold"
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 font-bold p-1 rounded-full transition"
             >
               <X size={18} />
             </button>
 
+            {/* Header Title */}
             <div className="text-center space-y-1">
               <h3 className="text-lg font-black text-gray-900">Welcome to Foodie Express 🍔</h3>
-              <p className="text-xs text-gray-500">Apne Email se Login / Sign Up karein</p>
+              <p className="text-xs text-gray-500">Food order karne ke liye login/register karein</p>
             </div>
 
-            <form onSubmit={handleEmailAuth} className="space-y-3">
-              <div>
-                <label className="text-[11px] font-bold text-gray-600 block mb-1">Email Address:</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="example@mail.com"
-                  value={userEmail}
-                  onChange={(e) => setUserEmail(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-red-500 transition text-gray-900"
-                />
-              </div>
-
-              <div>
-                <label className="text-[11px] font-bold text-gray-600 block mb-1">Password:</label>
-                <input
-                  type="password"
-                  required
-                  placeholder="••••••••"
-                  value={userPassword}
-                  onChange={(e) => setUserPassword(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-red-500 transition text-gray-900"
-                />
-              </div>
-
+            {/* Tab Switcher */}
+            <div className="flex bg-gray-100 p-1 rounded-xl">
               <button
-                type="submit"
-                className="w-full bg-red-500 hover:bg-red-600 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-md shadow-red-500/20 mt-2"
+                onClick={() => {
+                  setAuthTab('login')
+                  setAuthError('')
+                  setAuthMsg('')
+                }}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                  authTab === 'login' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
               >
-                Continue with Email 🚀
+                Login
               </button>
-            </form>
+              <button
+                onClick={() => {
+                  setAuthTab('register')
+                  setAuthError('')
+                  setAuthMsg('')
+                }}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition ${
+                  authTab === 'register' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-900'
+                }`}
+              >
+                Register
+              </button>
+            </div>
+
+            {/* In-Modal Error/Success Alerts */}
+            {authError && (
+              <div className="bg-red-50 border border-red-200 text-red-600 text-xs px-3 py-2 rounded-xl font-medium">
+                ⚠️ {authError}
+              </div>
+            )}
+            {authMsg && (
+              <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs px-3 py-2 rounded-xl font-medium">
+                {authMsg}
+              </div>
+            )}
+
+            {/* 🔑 LOGIN FORM */}
+            {authTab === 'login' ? (
+              <form onSubmit={handleLogin} className="space-y-3">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-600 block mb-1">Email Address:</label>
+                  <div className="relative">
+                    <Mail size={15} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="email"
+                      required
+                      placeholder="example@mail.com"
+                      value={userEmail}
+                      onChange={(e) => setUserEmail(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl pl-9 pr-3.5 py-2 text-xs outline-none focus:border-red-500 transition text-gray-900"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-600 block mb-1">Password:</label>
+                  <div className="relative">
+                    <Lock size={15} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="password"
+                      required
+                      placeholder="••••••••"
+                      value={userPassword}
+                      onChange={(e) => setUserPassword(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl pl-9 pr-3.5 py-2 text-xs outline-none focus:border-red-500 transition text-gray-900"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-md shadow-red-500/20 mt-2 disabled:opacity-50"
+                >
+                  {authLoading ? 'Logging in...' : 'Login 🚀'}
+                </button>
+              </form>
+            ) : (
+              /* 📝 REGISTER FORM WITH DISPLAY NAME */
+              <form onSubmit={handleRegister} className="space-y-3">
+                <div>
+                  <label className="text-[11px] font-bold text-gray-600 block mb-1">Full Name:</label>
+                  <div className="relative">
+                    <UserIcon size={15} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="text"
+                      required
+                      placeholder="Sarvesh Kumar"
+                      value={userName}
+                      onChange={(e) => setUserName(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl pl-9 pr-3.5 py-2 text-xs outline-none focus:border-red-500 transition text-gray-900"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-600 block mb-1">Email Address:</label>
+                  <div className="relative">
+                    <Mail size={15} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="email"
+                      required
+                      placeholder="example@mail.com"
+                      value={userEmail}
+                      onChange={(e) => setUserEmail(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl pl-9 pr-3.5 py-2 text-xs outline-none focus:border-red-500 transition text-gray-900"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-gray-600 block mb-1">Create Password:</label>
+                  <div className="relative">
+                    <Lock size={15} className="absolute left-3 top-3 text-gray-400" />
+                    <input
+                      type="password"
+                      required
+                      minLength={6}
+                      placeholder="•••••••• (Min 6 characters)"
+                      value={userPassword}
+                      onChange={(e) => setUserPassword(e.target.value)}
+                      className="w-full bg-gray-50 border border-gray-300 rounded-xl pl-9 pr-3.5 py-2 text-xs outline-none focus:border-red-500 transition text-gray-900"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="w-full bg-red-500 hover:bg-red-600 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-md shadow-red-500/20 mt-2 disabled:opacity-50"
+                >
+                  {authLoading ? 'Creating Account...' : 'Create Account 🎉'}
+                </button>
+              </form>
+            )}
+
           </div>
         </div>
       )}
 
-      {/* Success Modal */}
       {orderSuccess && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-xl">
