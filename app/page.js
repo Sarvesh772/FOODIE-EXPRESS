@@ -292,9 +292,19 @@ export default function Home() {
                 <Clock size={15} /> Kitchen Closed (Opens at 09:30 AM)
               </button>
             ) : (
-              <button onClick={() => setShowCheckout(true)} className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-1.5">
-                <ShoppingBag size={15} /> Place Online Order
-              </button>
+             <button 
+  onClick={() => {
+    if (!user) {
+      setAuthError('Order karne ke liye pehle Login / Register karein!')
+      setShowAuthModal(true)
+    } else {
+      setShowCheckout(true)
+    }
+  }} 
+  className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-1.5"
+>
+  <ShoppingBag size={15} /> Place Online Order
+</button>
             )}
           </div>
         </div>

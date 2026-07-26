@@ -1,9 +1,16 @@
 'use client'
 
-import { ShoppingBag, User } from 'lucide-react'
+import { ShoppingBag, User, LogOut } from 'lucide-react'
 import Link from 'next/link'
+import { supabase } from '@/lib/supabase'
 
 export default function Navbar({ user, onOpenAuth }) {
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    window.location.reload()
+  }
+
   return (
     <header className="sticky top-0 z-40 bg-white shadow-sm border-b">
       <div className="max-w-5xl mx-auto px-4 py-3 flex justify-between items-center gap-2">
@@ -40,6 +47,15 @@ export default function Navbar({ user, onOpenAuth }) {
                   {user.user_metadata?.display_name || user.email.split('@')[0]}
                 </span>
               </Link>
+
+              {/* 🚪 Logout Button */}
+              <button
+                onClick={handleLogout}
+                className="bg-gray-100 hover:bg-red-100 hover:text-red-600 text-gray-600 p-2 sm:px-2.5 sm:py-1.5 rounded-full transition"
+                title="Logout"
+              >
+                <LogOut size={16} />
+              </button>
             </div>
           ) : (
             <button 

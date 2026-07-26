@@ -45,7 +45,18 @@ export default function CustomerOrders() {
     if (status === 'Delivered') return 4
     return 1
   }
-
+if (!user) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4 text-center space-y-3">
+      <div className="text-4xl">🔐</div>
+      <h3 className="font-bold text-lg text-gray-800">Order History Dekhne Ke Liye Login Karein</h3>
+      <p className="text-xs text-gray-500">Aapne abhi tak login nahi kiya hai.</p>
+      <Link href="/" className="bg-red-500 text-white text-xs font-bold px-5 py-2.5 rounded-xl">
+        Go to Home & Login 🚀
+      </Link>
+    </div>
+  )
+}
   return (
     <div className="min-h-screen bg-gray-50 p-4 sm:p-6 text-gray-800 pb-12">
       <div className="max-w-3xl mx-auto">
