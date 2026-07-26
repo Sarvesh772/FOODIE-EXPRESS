@@ -7,7 +7,7 @@ import CheckoutModal from '@/components/CheckoutModal'
 import WebsiteReviews from '@/components/WebsiteReviews'
 import Footer from '@/components/Footer'
 import Link from 'next/link'
-import { ShoppingBag, Search, User, CheckCircle, Clock } from 'lucide-react'
+import { ShoppingBag, Search, User, CheckCircle, Clock, X } from 'lucide-react'
 import Navbar from '@/components/Navbar'
 import StoreClosedBanner from '@/components/StoreClosedBanner'
 
@@ -23,10 +23,21 @@ export default function Home() {
   const [orderSuccess, setOrderSuccess] = useState(null)
   const [isStoreClosed, setIsStoreClosed] = useState(false)
 
+  // Auth Modal States
+  const [showAuthModal, setShowAuthModal] = useState(false)
+  const [userEmail, setUserEmail] = useState('')
+  const [userPassword, setUserPassword] = useState('')
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (user) setUser(user)
     })
+    
+    // Auth Listener for login state change
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null)
+    })
+
     supabase.from('menu').select('*').then(({ data }) => {
       if (data) {
         setMenuList(data)
@@ -36,6 +47,8 @@ export default function Home() {
 
     // Store Timing Check (09:30 AM to 09:30 PM)
     checkStoreTiming()
+
+    return () => subscription.unsubscribe()
   }, [])
 
   const checkStoreTiming = () => {
@@ -79,6 +92,38 @@ export default function Home() {
 
   const totalPrice = cart.reduce((sum, item) => sum + item.price * item.qty, 0)
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0)
+
+  // 🔐 Email Authentication Handler
+  const handleEmailAuth = async (e) => {
+    e.preventDefault()
+    if (!userEmail || !userPassword) return
+
+    // Login Attempt
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: userEmail,
+      password: userPassword,
+    })
+
+    if (error) {
+      // Auto Sign-Up if account doesn't exist
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: userEmail,
+        password: userPassword,
+      })
+
+      if (signUpError) {
+        alert('❌ Auth Error: ' + signUpError.message)
+        return
+      }
+      alert('🎉 Account Created & Logged In!')
+      setUser(signUpData.user)
+    } else {
+      alert('✅ Login Successful!')
+      setUser(data.user)
+    }
+
+    setShowAuthModal(false)
+  }
 
   const handleConfirmOrder = async (orderDetails) => {
     if (isStoreClosed) {
@@ -126,7 +171,8 @@ export default function Home() {
         {/* 📢 Store Closed Auto Banner */}
         <StoreClosedBanner />
 
-        <Navbar user={user} onOpenAuth={() => alert('Top bar se login karein')} />
+        {/* 🧭 Navbar with Auth Click Hook */}
+        <Navbar user={user} onOpenAuth={() => setShowAuthModal(true)} />
 
         <main className="max-w-5xl mx-auto px-4 mt-6">
           {/* Banner */}
@@ -164,43 +210,43 @@ export default function Home() {
           </div>
 
           {/* Menu Cards Grid */}
-<h3 className="text-base font-bold mb-3 border-l-4 border-red-500 pl-2 text-gray-900">
-  Special Menu
-</h3>
+          <h3 className="text-base font-bold mb-3 border-l-4 border-red-500 pl-2 text-gray-900">
+            Special Menu
+          </h3>
 
-{filteredMenu.length === 0 ? (
-  /* 🔍 Empty State UI (Jab search item na mile) */
-  <div className="bg-white p-8 rounded-2xl border text-center my-4 space-y-2 shadow-sm">
-    <div className="text-3xl">🔍</div>
-    <h4 className="font-bold text-sm text-gray-800">
-      Aapka dhundha hua item nahi mila!
-    </h4>
-    <p className="text-xs text-gray-500">
-      Kripya spelling check karein ya dusra category select karein.
-    </p>
-    <button
-      onClick={() => {
-        setSearchQuery('')
-        setSelectedCategory('All')
-      }}
-      className="mt-2 bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-lg transition"
-    >
-      View Full Menu 📜
-    </button>
-  </div>
-) : (
-  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-    {filteredMenu.map((item) => (
-      <MenuCard
-        key={item.id}
-        item={item}
-        inCart={cart.find((i) => i.id === item.id)}
-        onAdd={addToCart}
-        onRemove={() => removeFromCart(item.id)}
-      />
-    ))}
-  </div>
-)}
+          {filteredMenu.length === 0 ? (
+            /* 🔍 Empty State UI */
+            <div className="bg-white p-8 rounded-2xl border text-center my-4 space-y-2 shadow-sm">
+              <div className="text-3xl">🔍</div>
+              <h4 className="font-bold text-sm text-gray-800">
+                Aapka dhundha hua item nahi mila!
+              </h4>
+              <p className="text-xs text-gray-500">
+                Kripya spelling check karein ya dusra category select karein.
+              </p>
+              <button
+                onClick={() => {
+                  setSearchQuery('')
+                  setSelectedCategory('All')
+                }}
+                className="mt-2 bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-lg transition"
+              >
+                View Full Menu 📜
+              </button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {filteredMenu.map((item) => (
+                <MenuCard
+                  key={item.id}
+                  item={item}
+                  inCart={cart.find((i) => i.id === item.id)}
+                  onAdd={addToCart}
+                  onRemove={() => removeFromCart(item.id)}
+                />
+              ))}
+            </div>
+          )}
 
           {/* 🌟 Genuine Customer Reviews Section */}
           <div className="mt-10">
@@ -209,7 +255,7 @@ export default function Home() {
         </main>
       </div>
 
-      {/* Cart Bottom Bar (Sticky overlay when cart has items) */}
+      {/* Cart Bottom Bar */}
       {cart.length > 0 && (
         <div className="fixed bottom-0 inset-x-0 bg-white border-t p-4 z-30 shadow-2xl">
           <div className="max-w-5xl mx-auto flex justify-between items-center">
@@ -218,7 +264,6 @@ export default function Home() {
               <p className="text-lg font-black text-red-500">₹{totalPrice}</p>
             </div>
 
-            {/* Smart Button based on Store Timing */}
             {isStoreClosed ? (
               <button disabled className="bg-gray-400 text-white font-bold text-xs px-5 py-2.5 rounded-xl flex items-center gap-1.5 cursor-not-allowed">
                 <Clock size={15} /> Kitchen Closed (Opens at 09:30 AM)
@@ -242,6 +287,59 @@ export default function Home() {
         totalPrice={totalPrice}
         onConfirmOrder={handleConfirmOrder}
       />
+
+      {/* 🔐 Email Login & Register Modal Popup */}
+      {showAuthModal && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full relative shadow-2xl space-y-4 border border-gray-100">
+            
+            <button 
+              onClick={() => setShowAuthModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 font-bold"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="text-center space-y-1">
+              <h3 className="text-lg font-black text-gray-900">Welcome to Foodie Express 🍔</h3>
+              <p className="text-xs text-gray-500">Apne Email se Login / Sign Up karein</p>
+            </div>
+
+            <form onSubmit={handleEmailAuth} className="space-y-3">
+              <div>
+                <label className="text-[11px] font-bold text-gray-600 block mb-1">Email Address:</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="example@mail.com"
+                  value={userEmail}
+                  onChange={(e) => setUserEmail(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-red-500 transition text-gray-900"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-gray-600 block mb-1">Password:</label>
+                <input
+                  type="password"
+                  required
+                  placeholder="••••••••"
+                  value={userPassword}
+                  onChange={(e) => setUserPassword(e.target.value)}
+                  className="w-full bg-gray-50 border border-gray-300 rounded-xl px-3.5 py-2 text-xs outline-none focus:border-red-500 transition text-gray-900"
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="w-full bg-red-500 hover:bg-red-600 text-white font-bold text-xs py-2.5 rounded-xl transition shadow-md shadow-red-500/20 mt-2"
+              >
+                Continue with Email 🚀
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Success Modal */}
       {orderSuccess && (
