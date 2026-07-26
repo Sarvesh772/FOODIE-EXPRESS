@@ -10,7 +10,6 @@ export default function Navbar({ user, onOpenAuth }) {
         
         {/* 🍔 Logo & Brand Name (Forced Single Line on Mobile) */}
         <Link href="/" className="flex items-center gap-2 whitespace-nowrap">
-          <img src="/favicon.png" alt="Logo" className="w-7 h-7 object-contain" />
           <span className="text-base sm:text-lg font-black tracking-wide text-red-500 uppercase">
             FOODIE EXPRESS
           </span>
