@@ -1,65 +1,262 @@
-import Image from "next/image";
+'use client'
+
+import { useState, useEffect } from 'react'
+import { supabase } from '@/lib/supabase'
+import MenuCard from '@/components/MenuCard'
+import CheckoutModal from '@/components/CheckoutModal'
+import WebsiteReviews from '@/components/WebsiteReviews'
+import Footer from '@/components/Footer'
+import Link from 'next/link'
+import { ShoppingBag, Search, User, CheckCircle, Clock } from 'lucide-react'
+import Navbar from '@/components/Navbar'
+import StoreClosedBanner from '@/components/StoreClosedBanner'
 
 export default function Home() {
+  const [menuList, setMenuList] = useState([])
+  const [filteredMenu, setFilteredMenu] = useState([])
+  const [selectedCategory, setSelectedCategory] = useState('All')
+  const [searchQuery, setSearchQuery] = useState('')
+
+  const [cart, setCart] = useState([])
+  const [user, setUser] = useState(null)
+  const [showCheckout, setShowCheckout] = useState(false)
+  const [orderSuccess, setOrderSuccess] = useState(null)
+  const [isStoreClosed, setIsStoreClosed] = useState(false)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setUser(user)
+    })
+    supabase.from('menu').select('*').then(({ data }) => {
+      if (data) {
+        setMenuList(data)
+        setFilteredMenu(data)
+      }
+    })
+
+    // Store Timing Check (09:30 AM to 09:30 PM)
+    checkStoreTiming()
+  }, [])
+
+  const checkStoreTiming = () => {
+    const now = new Date()
+    const hours = now.getHours()
+    const minutes = now.getMinutes()
+    const timeMins = hours * 60 + minutes
+
+    const openMins = 9 * 60 + 30   // 09:30 AM
+    const closeMins = 21 * 60 + 30 // 09:30 PM
+
+    if (timeMins < openMins || timeMins >= closeMins) {
+      setIsStoreClosed(true)
+    } else {
+      setIsStoreClosed(false)
+    }
+  }
+
+  useEffect(() => {
+    let result = menuList
+    if (selectedCategory !== 'All') {
+      result = result.filter((i) => i.category === selectedCategory)
+    }
+    if (searchQuery.trim() !== '') {
+      result = result.filter((i) => i.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    }
+    setFilteredMenu(result)
+  }, [selectedCategory, searchQuery, menuList])
+
+  const addToCart = (item) => {
+    setCart((prev) => {
+      const existing = prev.find((i) => i.id === item.id)
+      if (existing) return prev.map((i) => (i.id === item.id ? { ...i, qty: i.qty + 1 } : i))
+      return [...prev, { ...item, qty: 1 }]
+    })
+  }
+
+  const removeFromCart = (id) => {
+    setCart((prev) => prev.map((i) => (i.id === id ? { ...i, qty: i.qty - 1 } : i)).filter((i) => i.qty > 0))
+  }
+
+  const totalPrice = cart.reduce((sum, item) => sum + item.price * item.qty, 0)
+  const totalItems = cart.reduce((sum, item) => sum + item.qty, 0)
+
+  const handleConfirmOrder = async (orderDetails) => {
+    if (isStoreClosed) {
+      alert('⚠️ Kitchen abhi closed hai. Orders subah 09:30 AM se shuru honge.')
+      return
+    }
+
+    const itemsSummary = cart.map((i) => `${i.name} x ${i.qty}`).join(', ')
+    const customOrderId = `FE-${Math.floor(10000 + Math.random() * 90000)}`
+    const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString()
+    const isPaid = orderDetails.payMethod === 'UPI' ? 'Paid ✅' : 'Unpaid (COD) 💵'
+
+    const { data, error } = await supabase.from('orders').insert([
+      {
+        order_code: customOrderId,
+        user_id: user ? user.id : null,
+        customer_name: orderDetails.name,
+        customer_phone: orderDetails.phone,
+        address: `${orderDetails.address} - Pin: ${orderDetails.pincode}`,
+        instructions: orderDetails.instructions || null,
+        items: itemsSummary,
+        total_amount: totalPrice,
+        payment_method: orderDetails.payMethod,
+        payment_status: isPaid,
+        razorpay_payment_id: orderDetails.razorpay_id || null,
+        delivery_otp: generatedOtp,
+        status: 'Pending',
+      },
+    ]).select()
+
+    if (!error && data) {
+      setOrderSuccess(customOrderId)
+      setCart([])
+      setShowCheckout(false)
+    }
+  }
+
+  const categories = ['All', 'Rolls', 'Pizza', 'Momos', 'Chowmein', 'Drinks']
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col justify-between relative">
+      
+      {/* Upper Main Body Container */}
+      <div className="flex-1 pb-16">
+        {/* 📢 Store Closed Auto Banner */}
+        <StoreClosedBanner />
+
+        <Navbar user={user} onOpenAuth={() => alert('Top bar se login karein')} />
+
+        <main className="max-w-5xl mx-auto px-4 mt-6">
+          {/* Banner */}
+          <div className="bg-gradient-to-r from-red-500 to-rose-400 text-white p-5 rounded-2xl mb-6 shadow-md">
+            <h2 className="text-xl font-bold mb-1">Garma-Garam Fast Food 🚀</h2>
+            <p className="text-xs opacity-90">Under 30 minutes superfast local delivery!</p>
+          </div>
+
+          {/* Search & Categories */}
+          <div className="space-y-3 mb-6">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-3 text-gray-400" size={16} />
+              <input
+                type="text"
+                placeholder="Search Roll, Pizza, Momos..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white border border-gray-200 pl-10 pr-4 py-2.5 rounded-xl text-xs outline-none focus:border-red-500 shadow-sm"
+              />
+            </div>
+
+            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+              {categories.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`px-4 py-1.5 rounded-full font-bold text-xs whitespace-nowrap transition ${
+                    selectedCategory === cat ? 'bg-red-500 text-white shadow-sm' : 'bg-white text-gray-600 border hover:bg-gray-50'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Menu Cards Grid */}
+<h3 className="text-base font-bold mb-3 border-l-4 border-red-500 pl-2 text-gray-900">
+  Special Menu
+</h3>
+
+{filteredMenu.length === 0 ? (
+  /* 🔍 Empty State UI (Jab search item na mile) */
+  <div className="bg-white p-8 rounded-2xl border text-center my-4 space-y-2 shadow-sm">
+    <div className="text-3xl">🔍</div>
+    <h4 className="font-bold text-sm text-gray-800">
+      Aapka dhundha hua item nahi mila!
+    </h4>
+    <p className="text-xs text-gray-500">
+      Kripya spelling check karein ya dusra category select karein.
+    </p>
+    <button
+      onClick={() => {
+        setSearchQuery('')
+        setSelectedCategory('All')
+      }}
+      className="mt-2 bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-4 py-2 rounded-lg transition"
+    >
+      View Full Menu 📜
+    </button>
+  </div>
+) : (
+  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    {filteredMenu.map((item) => (
+      <MenuCard
+        key={item.id}
+        item={item}
+        inCart={cart.find((i) => i.id === item.id)}
+        onAdd={addToCart}
+        onRemove={() => removeFromCart(item.id)}
+      />
+    ))}
+  </div>
+)}
+
+          {/* 🌟 Genuine Customer Reviews Section */}
+          <div className="mt-10">
+            <WebsiteReviews />
+          </div>
+        </main>
+      </div>
+
+      {/* Cart Bottom Bar (Sticky overlay when cart has items) */}
+      {cart.length > 0 && (
+        <div className="fixed bottom-0 inset-x-0 bg-white border-t p-4 z-30 shadow-2xl">
+          <div className="max-w-5xl mx-auto flex justify-between items-center">
+            <div>
+              <p className="text-xs text-gray-500 font-semibold">{totalItems} items in cart</p>
+              <p className="text-lg font-black text-red-500">₹{totalPrice}</p>
+            </div>
+
+            {/* Smart Button based on Store Timing */}
+            {isStoreClosed ? (
+              <button disabled className="bg-gray-400 text-white font-bold text-xs px-5 py-2.5 rounded-xl flex items-center gap-1.5 cursor-not-allowed">
+                <Clock size={15} /> Kitchen Closed (Opens at 09:30 AM)
+              </button>
+            ) : (
+              <button onClick={() => setShowCheckout(true)} className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-1.5">
+                <ShoppingBag size={15} /> Place Online Order
+              </button>
+            )}
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      )}
+
+      {/* 🦶 Footer Component */}
+      <Footer />
+
+      {/* Checkout Modal */}
+      <CheckoutModal
+        isOpen={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        totalPrice={totalPrice}
+        onConfirmOrder={handleConfirmOrder}
+      />
+
+      {/* Success Modal */}
+      {orderSuccess && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-xl">
+            <CheckCircle size={48} className="text-green-500 mx-auto mb-2" />
+            <h3 className="text-lg font-bold text-gray-900">Order Placed Successfully! 🎉</h3>
+            <p className="text-xs text-gray-500 mt-1">Order ID: <span className="font-mono font-bold text-red-500">#{orderSuccess.slice(0, 8)}</span></p>
+            <Link href="/orders" className="mt-4 bg-red-500 text-white font-bold text-xs py-2.5 rounded-lg block hover:bg-red-600 transition">
+              See Order Status 📦
+            </Link>
+          </div>
         </div>
-      </main>
+      )}
+
     </div>
-  );
+  )
 }
