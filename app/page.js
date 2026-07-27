@@ -23,9 +23,9 @@ export default function Home() {
   const [orderSuccess, setOrderSuccess] = useState(null)
   const [isStoreClosed, setIsStoreClosed] = useState(false)
 
-  // 🔐 Auth Modal States
+  // Auth Modal States
   const [showAuthModal, setShowAuthModal] = useState(false)
-  const [authTab, setAuthTab] = useState('login') // 'login' or 'register'
+  const [authTab, setAuthTab] = useState('login')
   const [userName, setUserName] = useState('')
   const [userEmail, setUserEmail] = useState('')
   const [userPassword, setUserPassword] = useState('')
@@ -93,10 +93,12 @@ export default function Home() {
     setCart((prev) => prev.map((i) => (i.id === id ? { ...i, qty: i.qty - 1 } : i)).filter((i) => i.qty > 0))
   }
 
-  const totalPrice = cart.reduce((sum, item) => sum + item.price * item.qty, 0)
+  const itemTotal = cart.reduce((sum, item) => sum + item.price * item.qty, 0)
+  const deliveryFee = itemTotal >= 200 || itemTotal === 0 ? 0 : 20
+  const finalPayableAmount = itemTotal + deliveryFee
   const totalItems = cart.reduce((sum, item) => sum + item.qty, 0)
 
-  // 🔑 LOGIN HANDLER
+  // Login Handler
   const handleLogin = async (e) => {
     e.preventDefault()
     setAuthError('')
@@ -120,7 +122,7 @@ export default function Home() {
     }
   }
 
-  // 📝 REGISTER HANDLER WITH DISPLAY NAME
+  // Register Handler
   const handleRegister = async (e) => {
     e.preventDefault()
     setAuthError('')
@@ -154,15 +156,35 @@ export default function Home() {
     }
   }
 
-  const handleConfirmOrder = async (orderDetails) => {
-    if (isStoreClosed) {
-      return
+  // 📝 CONFIRM ORDER WITH FINAL PAYABLE AMOUNT (INCLUDING DELIVERY FEE)
+  const handleConfirmOrder = async (orderDetails, setErrorMessage) => {
+  if (isStoreClosed) return
+
+  // 🚫 Check if Customer is Banned
+  const customerKey = orderDetails.phone || (user ? user.id : '')
+  const { data: isBanned } = await supabase
+    .from('banned_users')
+    .select('*')
+    .or(`user_id_or_phone.eq.${customerKey},user_id_or_phone.eq.${user?.id}`)
+    .single()
+
+  if (isBanned) {
+    // ❌ No browser alert! Direct UI error set
+    if (setErrorMessage) {
+      setErrorMessage('🚫 Aapka account suspend/banned hai! Order nahi kiya ja sakta.')
     }
+    return
+  }
 
     const itemsSummary = cart.map((i) => `${i.name} x ${i.qty}`).join(', ')
     const customOrderId = `FE-${Math.floor(10000 + Math.random() * 90000)}`
     const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString()
     const isPaid = orderDetails.payMethod === 'UPI' ? 'Paid ✅' : 'Unpaid (COD) 💵'
+    
+
+    // Calculate final total to save
+    const currentDelivery = itemTotal >= 200 ? 0 : 20
+    const totalToSave = itemTotal + currentDelivery
 
     const { data, error } = await supabase.from('orders').insert([
       {
@@ -173,7 +195,7 @@ export default function Home() {
         address: `${orderDetails.address} - Pin: ${orderDetails.pincode}`,
         instructions: orderDetails.instructions || null,
         items: itemsSummary,
-        total_amount: totalPrice,
+        total_amount: totalToSave, // 👈 Saved Total Payable Amount (Food + Delivery Fee)
         payment_method: orderDetails.payMethod,
         payment_status: isPaid,
         razorpay_payment_id: orderDetails.razorpay_id || null,
@@ -193,7 +215,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col justify-between relative">
-      
       <div className="flex-1 pb-16">
         <StoreClosedBanner />
 
@@ -284,7 +305,7 @@ export default function Home() {
           <div className="max-w-5xl mx-auto flex justify-between items-center">
             <div>
               <p className="text-xs text-gray-500 font-semibold">{totalItems} items in cart</p>
-              <p className="text-lg font-black text-red-500">₹{totalPrice}</p>
+              <p className="text-lg font-black text-red-500">₹{finalPayableAmount}</p>
             </div>
 
             {isStoreClosed ? (
@@ -292,19 +313,19 @@ export default function Home() {
                 <Clock size={15} /> Kitchen Closed (Opens at 09:30 AM)
               </button>
             ) : (
-             <button 
-  onClick={() => {
-    if (!user) {
-      setAuthError('Order karne ke liye pehle Login / Register karein!')
-      setShowAuthModal(true)
-    } else {
-      setShowCheckout(true)
-    }
-  }} 
-  className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-1.5"
->
-  <ShoppingBag size={15} /> Place Online Order
-</button>
+              <button 
+                onClick={() => {
+                  if (!user) {
+                    setAuthError('Order karne ke liye pehle Login / Register karein!')
+                    setShowAuthModal(true)
+                  } else {
+                    setShowCheckout(true)
+                  }
+                }} 
+                className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-1.5"
+              >
+                <ShoppingBag size={15} /> Place Online Order
+              </button>
             )}
           </div>
         </div>
@@ -313,17 +334,17 @@ export default function Home() {
       <Footer />
 
       <CheckoutModal
-        isOpen={showCheckout}
-        onClose={() => setShowCheckout(false)}
-        totalPrice={totalPrice}
-        onConfirmOrder={handleConfirmOrder}
-      />
+  isOpen={showCheckout}
+  onClose={() => setShowCheckout(false)}
+  totalPrice={itemTotal}
+  onConfirmOrder={handleConfirmOrder}
+  user={user}  // 👈 User prop pass kiya
+/>
 
-      {/* 🔐 AUTH MODAL (SEPARATE LOGIN & REGISTER TABS + NO BROWSER ALERT) */}
+      {/* Auth Modal */}
       {showAuthModal && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 max-w-sm w-full relative shadow-2xl space-y-4 border border-gray-100">
-            
             <button 
               onClick={() => setShowAuthModal(false)}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-700 font-bold p-1 rounded-full transition"
@@ -331,13 +352,11 @@ export default function Home() {
               <X size={18} />
             </button>
 
-            {/* Header Title */}
             <div className="text-center space-y-1">
               <h3 className="text-lg font-black text-gray-900">Welcome to Foodie Express 🍔</h3>
               <p className="text-xs text-gray-500">Food order karne ke liye login/register karein</p>
             </div>
 
-            {/* Tab Switcher */}
             <div className="flex bg-gray-100 p-1 rounded-xl">
               <button
                 onClick={() => {
@@ -365,7 +384,6 @@ export default function Home() {
               </button>
             </div>
 
-            {/* In-Modal Error/Success Alerts */}
             {authError && (
               <div className="bg-red-50 border border-red-200 text-red-600 text-xs px-3 py-2 rounded-xl font-medium">
                 ⚠️ {authError}
@@ -377,7 +395,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* 🔑 LOGIN FORM */}
             {authTab === 'login' ? (
               <form onSubmit={handleLogin} className="space-y-3">
                 <div>
@@ -419,7 +436,6 @@ export default function Home() {
                 </button>
               </form>
             ) : (
-              /* 📝 REGISTER FORM WITH DISPLAY NAME */
               <form onSubmit={handleRegister} className="space-y-3">
                 <div>
                   <label className="text-[11px] font-bold text-gray-600 block mb-1">Full Name:</label>
@@ -476,7 +492,6 @@ export default function Home() {
                 </button>
               </form>
             )}
-
           </div>
         </div>
       )}
@@ -486,14 +501,13 @@ export default function Home() {
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-xl">
             <CheckCircle size={48} className="text-green-500 mx-auto mb-2" />
             <h3 className="text-lg font-bold text-gray-900">Order Placed Successfully! 🎉</h3>
-            <p className="text-xs text-gray-500 mt-1">Order ID: <span className="font-mono font-bold text-red-500">#{orderSuccess.slice(0, 8)}</span></p>
+            <p className="text-xs text-gray-500 mt-1">Order ID: <span className="font-mono font-bold text-red-500">#{orderSuccess}</span></p>
             <Link href="/orders" className="mt-4 bg-red-500 text-white font-bold text-xs py-2.5 rounded-lg block hover:bg-red-600 transition">
               See Order Status 📦
             </Link>
           </div>
         </div>
       )}
-
     </div>
   )
 }
