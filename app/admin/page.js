@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { 
   ShieldCheck, Lock, RefreshCw, Printer, Clock, Truck, 
   AlertTriangle, Phone, MapPin, Volume2, VolumeX, LogOut, 
-  ShoppingBag, Utensils, Plus, Trash2, CheckSquare, Square, Upload 
+  ShoppingBag, Utensils, Plus, Trash2, CheckSquare, Square, Upload, Users 
 } from 'lucide-react'
 
 export default function AdminDashboard() {
@@ -16,10 +16,13 @@ export default function AdminDashboard() {
   const [authError, setAuthError] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
 
+  // 👥 Profiles State
+  const [userProfiles, setUserProfiles] = useState([])
+
   // 🔔 Toast Notification State
   const [toastMessage, setToastMessage] = useState('')
 
-  // 🧭 Navigation Tab State ('orders' or 'menu')
+  // 🧭 Navigation Tab State ('orders', 'menu', or 'profiles')
   const [activeTab, setActiveTab] = useState('orders')
 
   // 📦 Orders State
@@ -52,6 +55,7 @@ export default function AdminDashboard() {
       setIsAuthenticated(true)
       fetchOrders()
       fetchMenu()
+      fetchProfiles()
     }
   }, [])
 
@@ -104,6 +108,32 @@ export default function AdminDashboard() {
     if (!error && data) setMenuItems(data)
   }
 
+  // 👥 Fetch Customer Profiles
+  const fetchProfiles = async () => {
+    const { data: ordersData } = await supabase
+      .from('orders')
+      .select('user_id, customer_name, customer_phone, total_amount, created_at')
+      .order('created_at', { ascending: false })
+
+    const userMap = {}
+    ordersData?.forEach((ord) => {
+      const key = ord.customer_phone || ord.user_id || ord.customer_name
+      if (!userMap[key]) {
+        userMap[key] = {
+          name: ord.customer_name || 'Guest User',
+          phone: ord.customer_phone || 'N/A',
+          totalOrders: 0,
+          totalSpent: 0,
+          lastOrdered: ord.created_at,
+        }
+      }
+      userMap[key].totalOrders += 1
+      userMap[key].totalSpent += Number(ord.total_amount || 0)
+    })
+
+    setUserProfiles(Object.values(userMap))
+  }
+
   // Admin Login Handler
   const handleAdminLogin = async (e) => {
     e.preventDefault()
@@ -127,6 +157,7 @@ export default function AdminDashboard() {
     localStorage.setItem('fe_admin_login', 'true')
     fetchOrders()
     fetchMenu()
+    fetchProfiles()
     setAuthLoading(false)
     showToast('🔑 Welcome Back Admin!')
   }
@@ -401,7 +432,7 @@ export default function AdminDashboard() {
               <span className="hidden sm:inline">{soundEnabled ? 'Sound ON' : 'Muted'}</span>
             </button>
 
-            <button onClick={() => { fetchOrders(); fetchMenu(); }} className="bg-gray-800 hover:bg-gray-700 text-gray-300 p-2 rounded-lg border border-gray-700 transition">
+            <button onClick={() => { fetchOrders(); fetchMenu(); fetchProfiles(); }} className="bg-gray-800 hover:bg-gray-700 text-gray-300 p-2 rounded-lg border border-gray-700 transition">
               <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
             </button>
 
@@ -414,22 +445,35 @@ export default function AdminDashboard() {
 
       {/* Main Navigation Tabs */}
       <div className="bg-gray-900 border-b border-gray-800 py-2.5">
-        <div className="max-w-6xl mx-auto px-4 flex gap-3">
+        <div className="max-w-6xl mx-auto px-4 flex gap-3 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('orders')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTab === 'orders' ? 'bg-red-500 text-white shadow-sm' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
             }`}
           >
             <ShoppingBag size={15} /> Live Orders ({orders.length})
           </button>
+          
           <button
             onClick={() => setActiveTab('menu')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition ${
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
               activeTab === 'menu' ? 'bg-red-500 text-white shadow-sm' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
             }`}
           >
             <Utensils size={15} /> Menu Manager ({menuItems.length})
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab('profiles')
+              fetchProfiles()
+            }}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              activeTab === 'profiles' ? 'bg-red-500 text-white shadow-sm' : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+            }`}
+          >
+            <Users size={15} /> User Profiles ({userProfiles.length})
           </button>
         </div>
       </div>
@@ -713,6 +757,65 @@ export default function AdminDashboard() {
               })}
             </div>
 
+          </div>
+        </main>
+      )}
+
+      {/* 👥 TAB 3: USER PROFILES VIEW */}
+      {activeTab === 'profiles' && (
+        <main className="max-w-6xl mx-auto px-4 py-6 flex-1 w-full space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+              <p className="text-xs font-bold text-gray-400">Total Customers</p>
+              <p className="text-2xl font-black text-white mt-1">{userProfiles.length}</p>
+            </div>
+            <div className="bg-gray-900 border border-gray-800 p-4 rounded-2xl">
+              <p className="text-xs font-bold text-gray-400">Total Customer Revenue</p>
+              <p className="text-2xl font-black text-emerald-400 mt-1">
+                ₹{userProfiles.reduce((sum, p) => sum + p.totalSpent, 0)}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {userProfiles.length === 0 ? (
+              <div className="bg-gray-900 border border-gray-800 p-8 rounded-2xl text-center text-xs text-gray-500">
+                No customer profiles found!
+              </div>
+            ) : (
+              userProfiles.map((p, idx) => (
+                <div key={idx} className="bg-gray-900 border border-gray-800 p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-sm text-white">{p.name}</h4>
+                      <span className="bg-red-500/20 text-red-400 font-bold text-[10px] px-2 py-0.5 rounded-md border border-red-500/30">
+                        {p.totalOrders} Orders
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      📞 {p.phone} • Last Active: {new Date(p.lastOrdered).toLocaleDateString('hi-IN')}
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
+                    <div>
+                      <p className="text-[10px] text-gray-500 font-bold">Total Spent</p>
+                      <p className="text-sm font-black text-emerald-400">₹{p.totalSpent}</p>
+                    </div>
+                    {p.phone !== 'N/A' && (
+                      <a
+                        href={`https://wa.me/91${p.phone.replace(/[^0-9]/g, '')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold text-xs px-3 py-1.5 rounded-xl transition"
+                      >
+                        💬 WhatsApp
+                      </a>
+                    )}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </main>
       )}
