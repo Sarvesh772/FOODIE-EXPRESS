@@ -23,64 +23,57 @@ export default function AdminProfiles() {
   const fetchProfiles = async () => {
     setLoading(true)
 
-    // 1. Fetch Orders
-    const { data: ordersData, error: ordersErr } = await supabase
-      .from('orders')
-      .select('user_id, customer_name, customer_phone, total_amount, created_at')
+    // 1. Fetch Registered Users from 'profiles' table
+    const { data: usersData, error: usersErr } = await supabase
+      .from('profiles')
+      .select('*')
       .order('created_at', { ascending: false })
 
-    if (ordersErr) {
-      console.error('Error fetching orders:', ordersErr)
-    }
-
-    // 2. Fetch Banned Users Table
+    // 2. Fetch Banned Users
     const { data: bannedData, error: bannedErr } = await supabase
       .from('banned_users')
       .select('*')
 
-    if (bannedErr) {
-      console.error('Error fetching banned users:', bannedErr)
+    if (usersErr) {
+      console.error('Error fetching users:', usersErr)
     }
 
     const bannedSet = new Set(bannedData?.map((b) => b.user_id_or_phone) || [])
 
-    // 3. Aggregate User Profiles
-    const userMap = {}
-    ordersData?.forEach((ord) => {
-      const key = ord.customer_phone || ord.user_id || ord.customer_name
-      if (!userMap[key]) {
-        userMap[key] = {
-          key: key,
-          userId: ord.user_id,
-          name: ord.customer_name || 'Guest User',
-          phone: ord.customer_phone || 'N/A',
-          totalOrders: 0,
-          totalSpent: 0,
-          lastOrdered: ord.created_at,
-          isBanned: 
-            bannedSet.has(key) || 
-            (ord.user_id && bannedSet.has(ord.user_id)) || 
-            (ord.customer_phone && bannedSet.has(ord.customer_phone)),
-        }
-      }
-      userMap[key].totalOrders += 1
-      userMap[key].totalSpent += Number(ord.total_amount || 0)
-    })
+    if (usersData) {
+      const formattedProfiles = usersData.map((u) => {
+        const phoneKey = u.phone || u.mobile || ''
+        const userIdKey = u.id || ''
 
-    setProfiles(Object.values(userMap))
+        const isBanned = 
+          (phoneKey && bannedSet.has(phoneKey)) || 
+          (userIdKey && bannedSet.has(userIdKey))
+
+        return {
+          id: u.id,
+          name: u.full_name || u.display_name || 'User',
+          phone: u.phone || u.mobile || 'N/A',
+          email: u.email || '',
+          created_at: u.created_at,
+          isBanned: isBanned,
+        }
+      })
+
+      setProfiles(formattedProfiles)
+    }
     setLoading(false)
   }
 
-  // 🚫 TOGGLE BAN / UNBAN
+  // 🚫 TOGGLE BAN / UNBAN HANDLER
   const toggleBanUser = async (user) => {
-    const targetKey = user.phone !== 'N/A' ? user.phone : (user.userId || user.key)
+    const targetKey = user.phone !== 'N/A' && user.phone ? user.phone : user.id
 
     if (user.isBanned) {
-      // Unban
+      // Unban User
       const { error } = await supabase
         .from('banned_users')
         .delete()
-        .eq('user_id_or_phone', targetKey)
+        .or(`user_id_or_phone.eq.${user.phone},user_id_or_phone.eq.${user.id}`)
 
       if (!error) {
         showToast(`✅ ${user.name} ko Unban kar diya gaya!`)
@@ -88,7 +81,7 @@ export default function AdminProfiles() {
         showToast(`❌ Error: ${error.message}`)
       }
     } else {
-      // Ban
+      // Ban User
       const { error } = await supabase
         .from('banned_users')
         .insert([{ user_id_or_phone: targetKey, name: user.name }])
@@ -105,14 +98,15 @@ export default function AdminProfiles() {
 
   const filtered = profiles.filter(p => 
     p.name.toLowerCase().includes(search.toLowerCase()) || 
-    p.phone.includes(search)
+    p.phone.includes(search) ||
+    p.email.toLowerCase().includes(search.toLowerCase())
   )
 
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 p-4 sm:p-6 pb-12">
       <div className="max-w-4xl mx-auto space-y-5">
         
-        {/* Header */}
+        {/* Top Header */}
         <div className="flex items-center justify-between">
           <Link href="/admin" className="text-xs font-bold text-red-400 flex items-center gap-1 bg-gray-900 border border-gray-800 px-3 py-2 rounded-xl hover:bg-gray-800 transition">
             <ArrowLeft size={15} /> Dashboard
@@ -122,7 +116,7 @@ export default function AdminProfiles() {
           </h1>
         </div>
 
-        {/* Stats */}
+        {/* Counter Cards */}
         <div className="grid grid-cols-2 gap-3">
           <div className="bg-gray-900 border border-gray-800 p-3.5 rounded-2xl">
             <p className="text-[11px] font-bold text-gray-400">Total Registered Users</p>
@@ -139,27 +133,27 @@ export default function AdminProfiles() {
           <Search className="absolute left-3.5 top-3 text-gray-500" size={16} />
           <input
             type="text"
-            placeholder="Search customer by name or phone..."
+            placeholder="Search by name, phone or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-gray-900 border border-gray-800 pl-10 pr-4 py-2.5 rounded-xl text-xs text-white outline-none focus:border-red-500"
           />
         </div>
 
-        {/* User Profiles List */}
+        {/* Pure Registered Users List */}
         <div className="space-y-3">
           {loading ? (
             <div className="bg-gray-900 border border-gray-800 p-8 rounded-2xl text-center text-xs text-gray-500">
-              Loading customer profiles...
+              Loading users...
             </div>
           ) : filtered.length === 0 ? (
             <div className="bg-gray-900 border border-gray-800 p-8 rounded-2xl text-center text-xs text-gray-500">
-              No customer profiles found!
+              No registered users found!
             </div>
           ) : (
-            filtered.map((p, idx) => (
+            filtered.map((p) => (
               <div 
-                key={idx} 
+                key={p.id} 
                 className={`bg-gray-900 border p-4 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition ${
                   p.isBanned ? 'border-red-500/50 bg-red-950/20' : 'border-gray-800'
                 }`}
@@ -167,9 +161,6 @@ export default function AdminProfiles() {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="font-bold text-sm text-white">{p.name}</span>
-                    <span className="bg-red-500/20 text-red-400 font-bold text-[10px] px-2 py-0.5 rounded-md border border-red-500/30">
-                      {p.totalOrders} Orders
-                    </span>
                     {p.isBanned && (
                       <span className="bg-red-600 text-white font-bold text-[10px] px-2 py-0.5 rounded-md flex items-center gap-1">
                         <Ban size={10} /> BANNED
@@ -177,12 +168,12 @@ export default function AdminProfiles() {
                     )}
                   </div>
                   <p className="text-xs text-gray-400 mt-1">
-                    📞 {p.phone} • Total Spent: <strong className="text-emerald-400">₹{p.totalSpent}</strong>
+                    📞 {p.phone} {p.email ? `• ✉️ ${p.email}` : ''}
                   </p>
                 </div>
 
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
-                  {p.phone !== 'N/A' && (
+                  {p.phone !== 'N/A' && p.phone && (
                     <a
                       href={`https://wa.me/91${p.phone.replace(/[^0-9]/g, '')}`}
                       target="_blank"
