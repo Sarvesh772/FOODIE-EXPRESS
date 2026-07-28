@@ -233,6 +233,9 @@ export default function Home() {
           <h3 className="text-base font-bold mb-3 border-l-4 border-red-500 pl-2 text-gray-900">
             Special Menu
           </h3>
+          <h3 className="text-base font-bold mb-3 border-l-4 border-red-500 pl-2 text-gray-900">
+            Note - Website is real, Only Menu items Fake.
+          </h3>
 
           {filteredMenu.length === 0 ? (
             <div className="bg-white p-8 rounded-2xl border text-center my-4 space-y-2 shadow-sm">
