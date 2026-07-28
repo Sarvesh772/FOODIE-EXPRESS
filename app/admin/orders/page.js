@@ -7,7 +7,6 @@ import {
   Phone, MapPin, Volume2, VolumeX, XCircle, AlertTriangle, X 
 } from 'lucide-react'
 import Link from 'next/link'
-import { sendOrderSMS } from '@/lib/sms';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([])
@@ -69,42 +68,23 @@ export default function AdminOrders() {
   }
 
   const updateOrderStatus = async (orderId, newStatus) => {
-  const { data: updatedOrder, error } = await supabase
-    .from('orders')
-    .update({ status: newStatus })
-    .eq('id', orderId)
-    .select('*')
-    .single()
+    const { data: updatedOrder, error } = await supabase
+      .from('orders')
+      .update({ status: newStatus })
+      .eq('id', orderId)
+      .select('*')
+      .single()
 
-  if (!error && updatedOrder) {
-    setOrders((prev) =>
-      prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
-    )
-    showToast(`Status: ${newStatus}`)
-
-    // 📩 Automatic SMS Alerts based on Status
-    const phone = updatedOrder.customer_phone
-    const orderCode = updatedOrder.order_code
-    const otp = updatedOrder.delivery_otp
-
-    if (newStatus === 'Preparing') {
-      sendOrderSMS(
-        phone,
-        `Foodie Express: Order #${orderCode} is being prepared in our kitchen! 👨‍🍳`
+    if (!error && updatedOrder) {
+      setOrders((prev) =>
+        prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
       )
-    } else if (newStatus === 'Out for Delivery') {
-      sendOrderSMS(
-        phone,
-        `Foodie Express: Order #${orderCode} is out for delivery! Give OTP ${otp} to the delivery agent. 🛵`
-      )
-    } else if (newStatus === 'Delivered') {
-      sendOrderSMS(
-        phone,
-        `Foodie Express: Order #${orderCode} delivered successfully! Enjoy your food! 🍔🎉`
-      )
+      showToast(`Status: ${newStatus}`)
+    } else if (error) {
+      console.error('Error updating order status:', error.message)
+      alert('Failed to update order status')
     }
   }
-}
 
   // Open Admin Cancel Modal
   const openAdminCancelModal = (orderId) => {

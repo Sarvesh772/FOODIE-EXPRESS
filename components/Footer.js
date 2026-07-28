@@ -68,8 +68,8 @@ export default function Footer() {
               <span>09:30 AM – 09:30 PM (Everyday)</span>
             </div>
             <div className="bg-gray-800 p-2.5 rounded-lg border border-gray-700 text-[11px] text-gray-300 font-medium mt-3">
-              🚀 Local Delivery within <span className="text-red-400 font-bold">5km Radius</span>
-            </div>
+  🚀 Superfast Home Delivery Available
+</div>
           </div>
         </div>
 

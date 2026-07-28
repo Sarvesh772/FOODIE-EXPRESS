@@ -90,7 +90,7 @@ export default function ProfilePage() {
             </div>
 
             <div>
-              <label className="font-bold text-gray-700 block mb-1">Default Address (Under 5km)</label>
+              <label className="font-bold text-gray-700 block mb-1">Default Address </label>
               <textarea value={address} onChange={(e) => setAddress(e.target.value)} required rows={2} className="w-full border p-2.5 rounded-lg outline-none focus:border-red-500" />
             </div>
 

@@ -41,7 +41,7 @@ export default function SupportWidget({ supportPhone = "918957903863" }) {
 
           <div className="mt-3 pt-2.5 border-t text-[10px] text-gray-400 space-y-1">
             <p className="flex items-center gap-1"><Clock size={11} /> Service Time: 09:00 AM - 09:00 PM</p>
-            <p className="flex items-center gap-1"><MapPin size={11} /> Fast Local Delivery (Under 5km)</p>
+            <p className="flex items-center gap-1"><MapPin size={11} /> Fast Local Delivery </p>
           </div>
         </div>
       )}

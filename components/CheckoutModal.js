@@ -191,7 +191,7 @@ export default function CheckoutModal({ isOpen, onClose, totalPrice, onConfirmOr
           </div>
 
           <div>
-            <label className="font-bold text-gray-700 block mb-1">Address / Landmark (Under 5km):</label>
+           <label className="font-bold text-gray-700 block mb-1">Address / Landmark:</label>
             <input
               type="text"
               required
@@ -226,12 +226,12 @@ export default function CheckoutModal({ isOpen, onClose, totalPrice, onConfirmOr
           </div>
 
           <div className="bg-red-50 border border-red-200 text-red-700 p-2.5 rounded-xl text-[11px] space-y-1">
-            <p className="font-bold flex items-center gap-1">🚨 Fast Delivery Rules:</p>
-            <ul className="list-disc pl-4 space-y-0.5">
-              <li>Hum abhi sirf 5km radius me deliver karte hain.</li>
-              <li>Delivery boy ko aane par order verification OTP zaroor batayein.</li>
-            </ul>
-          </div>
+  <p className="font-bold flex items-center gap-1">🚨 Fast Delivery Rules:</p>
+  <ul className="list-disc pl-4 space-y-0.5">
+    <li>Delivery boy ko aane par order verification OTP zaroor batayein.</li>
+    <li>Orders History me aapko OTP Mil jayega.</li>
+  </ul>
+</div>
 
           <div className="space-y-1.5 pt-1">
             <label className="font-bold text-gray-800 block">Select Payment Method:</label>
