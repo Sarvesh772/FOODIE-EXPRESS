@@ -7,7 +7,7 @@ import {
   Phone, MapPin, Volume2, VolumeX, XCircle, AlertTriangle, X 
 } from 'lucide-react'
 import Link from 'next/link'
-import { sendOrderSMS } from '@/lib/sms'
+import { sendOrderSMS } from '@/lib/sms';
 
 export default function AdminOrders() {
   const [orders, setOrders] = useState([])

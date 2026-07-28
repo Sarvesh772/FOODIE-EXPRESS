@@ -7,9 +7,8 @@ import CheckoutModal from '@/components/CheckoutModal'
 import WebsiteReviews from '@/components/WebsiteReviews'
 import Footer from '@/components/Footer'
 import Link from 'next/link'
-import { ShoppingBag, Search, CheckCircle, Clock, X, Lock, Mail, User as UserIcon } from 'lucide-react'
+import { ShoppingBag, Search, CheckCircle, X, Lock, Mail, User as UserIcon } from 'lucide-react'
 import Navbar from '@/components/Navbar'
-import StoreClosedBanner from '@/components/StoreClosedBanner'
 
 export default function Home() {
   const [menuList, setMenuList] = useState([])
@@ -21,7 +20,6 @@ export default function Home() {
   const [user, setUser] = useState(null)
   const [showCheckout, setShowCheckout] = useState(false)
   const [orderSuccess, setOrderSuccess] = useState(null)
-  const [isStoreClosed, setIsStoreClosed] = useState(false)
 
   // Auth Modal States
   const [showAuthModal, setShowAuthModal] = useState(false)
@@ -49,26 +47,8 @@ export default function Home() {
       }
     })
 
-    checkStoreTiming()
-
     return () => subscription.unsubscribe()
   }, [])
-
-  const checkStoreTiming = () => {
-    const now = new Date()
-    const hours = now.getHours()
-    const minutes = now.getMinutes()
-    const timeMins = hours * 60 + minutes
-
-    const openMins = 9 * 60 + 30   // 09:30 AM
-    const closeMins = 21 * 60 + 30 // 09:30 PM
-
-    if (timeMins < openMins || timeMins >= closeMins) {
-      setIsStoreClosed(true)
-    } else {
-      setIsStoreClosed(false)
-    }
-  }
 
   useEffect(() => {
     let result = menuList
@@ -156,33 +136,28 @@ export default function Home() {
     }
   }
 
-  // 📝 CONFIRM ORDER WITH FINAL PAYABLE AMOUNT (INCLUDING DELIVERY FEE)
+  // 📝 CONFIRM ORDER WITH FINAL PAYABLE AMOUNT
   const handleConfirmOrder = async (orderDetails, setErrorMessage) => {
-  if (isStoreClosed) return
+    // 🚫 Check if Customer is Banned
+    const customerKey = orderDetails.phone || (user ? user.id : '')
+    const { data: isBanned } = await supabase
+      .from('banned_users')
+      .select('*')
+      .or(`user_id_or_phone.eq.${customerKey},user_id_or_phone.eq.${user?.id}`)
+      .single()
 
-  // 🚫 Check if Customer is Banned
-  const customerKey = orderDetails.phone || (user ? user.id : '')
-  const { data: isBanned } = await supabase
-    .from('banned_users')
-    .select('*')
-    .or(`user_id_or_phone.eq.${customerKey},user_id_or_phone.eq.${user?.id}`)
-    .single()
-
-  if (isBanned) {
-    // ❌ No browser alert! Direct UI error set
-    if (setErrorMessage) {
-      setErrorMessage('🚫 Aapka account suspend/banned hai! Order nahi kiya ja sakta.')
+    if (isBanned) {
+      if (setErrorMessage) {
+        setErrorMessage('🚫 Aapka account suspend/banned hai! Order nahi kiya ja sakta.')
+      }
+      return
     }
-    return
-  }
 
     const itemsSummary = cart.map((i) => `${i.name} x ${i.qty}`).join(', ')
     const customOrderId = `FE-${Math.floor(10000 + Math.random() * 90000)}`
     const generatedOtp = Math.floor(1000 + Math.random() * 9000).toString()
     const isPaid = orderDetails.payMethod === 'UPI' ? 'Paid ✅' : 'Unpaid (COD) 💵'
-    
 
-    // Calculate final total to save
     const currentDelivery = itemTotal >= 200 ? 0 : 20
     const totalToSave = itemTotal + currentDelivery
 
@@ -195,7 +170,7 @@ export default function Home() {
         address: `${orderDetails.address} - Pin: ${orderDetails.pincode}`,
         instructions: orderDetails.instructions || null,
         items: itemsSummary,
-        total_amount: totalToSave, // 👈 Saved Total Payable Amount (Food + Delivery Fee)
+        total_amount: totalToSave,
         payment_method: orderDetails.payMethod,
         payment_status: isPaid,
         razorpay_payment_id: orderDetails.razorpay_id || null,
@@ -216,8 +191,6 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col justify-between relative">
       <div className="flex-1 pb-16">
-        <StoreClosedBanner />
-
         <Navbar user={user} onOpenAuth={() => {
           setAuthError('')
           setAuthMsg('')
@@ -308,25 +281,19 @@ export default function Home() {
               <p className="text-lg font-black text-red-500">₹{finalPayableAmount}</p>
             </div>
 
-            {isStoreClosed ? (
-              <button disabled className="bg-gray-400 text-white font-bold text-xs px-5 py-2.5 rounded-xl flex items-center gap-1.5 cursor-not-allowed">
-                <Clock size={15} /> Kitchen Closed (Opens at 09:30 AM)
-              </button>
-            ) : (
-              <button 
-                onClick={() => {
-                  if (!user) {
-                    setAuthError('Order karne ke liye pehle Login / Register karein!')
-                    setShowAuthModal(true)
-                  } else {
-                    setShowCheckout(true)
-                  }
-                }} 
-                className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-1.5"
-              >
-                <ShoppingBag size={15} /> Place Online Order
-              </button>
-            )}
+            <button 
+              onClick={() => {
+                if (!user) {
+                  setAuthError('Order karne ke liye pehle Login / Register karein!')
+                  setShowAuthModal(true)
+                } else {
+                  setShowCheckout(true)
+                }
+              }} 
+              className="bg-red-500 hover:bg-red-600 text-white font-bold text-xs px-6 py-2.5 rounded-xl flex items-center gap-1.5"
+            >
+              <ShoppingBag size={15} /> Place Online Order
+            </button>
           </div>
         </div>
       )}
@@ -334,12 +301,12 @@ export default function Home() {
       <Footer />
 
       <CheckoutModal
-  isOpen={showCheckout}
-  onClose={() => setShowCheckout(false)}
-  totalPrice={itemTotal}
-  onConfirmOrder={handleConfirmOrder}
-  user={user}  // 👈 User prop pass kiya
-/>
+        isOpen={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        totalPrice={itemTotal}
+        onConfirmOrder={handleConfirmOrder}
+        user={user}
+      />
 
       {/* Auth Modal */}
       {showAuthModal && (
