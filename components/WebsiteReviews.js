@@ -2,11 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import Star from 'lucide-react/dist/esm/icons/star'
-import Send from 'lucide-react/dist/esm/icons/send'
-import ShieldCheck from 'lucide-react/dist/esm/icons/shield-check'
-import CheckCircle2 from 'lucide-react/dist/esm/icons/check-circle-2'
-import Lock from 'lucide-react/dist/esm/icons/lock'
+import { Star, Send, ShieldCheck, CheckCircle2, Lock } from 'lucide-react'
 
 export default function WebsiteReviews() {
   const [reviews, setReviews] = useState([])
@@ -33,12 +29,13 @@ export default function WebsiteReviews() {
   }
 
   const fetchReviews = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('website_reviews')
       .select('*')
       .order('created_at', { ascending: false })
 
     if (data) setReviews(data)
+    if (error) console.error('Error fetching reviews:', error.message)
   }
 
   // Real Dynamic Average Calculation
@@ -65,7 +62,10 @@ export default function WebsiteReviews() {
       },
     ])
 
-    if (!error) {
+    if (error) {
+      console.error('Error inserting review:', error.message)
+      alert('Review save karne me error aayi: ' + error.message)
+    } else {
       setFeedback('')
       fetchReviews()
       setSuccessMsg(true)
